@@ -1,0 +1,119 @@
+Давайте создадим топик в Kafka. Для этого выполните следующие шаги:
+
+Убедитесь, что контейнеры Kafka и Zookeeper работают.
+
+docker ps
+
+Подключитесь к контейнеру Kafka, чтобы использовать команду для создания топика.
+
+docker exec -it kafka bash
+Это откроет оболочку внутри контейнера kafka.
+
+В контейнере Kafka используйте команду kafka-topics для создания топика. Например, чтобы создать топик с именем my_topic и 1 разделом (partition) и 1 репликой (replica), выполните следующую команду:
+
+kafka-topics --create --topic my_topic --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1
+
+--create: Создает новый топик.
+--topic my_topic: Указывает имя топика.
+--bootstrap-server kafka:9092: Указывает сервер Kafka для подключения. Мы используем имя контейнера kafka, так как он является сервером для других контейнеров в сети Docker.
+--partitions 1: Указывает количество разделов для топика.
+--replication-factor 1: Указывает количество реплик для топика.
+
+Чтобы убедиться, что топик был создан, вы можете проверить список всех топиков:
+
+
+kafka-topics --list --bootstrap-server kafka:9092
+
+
+Чтобы создать консольного потребителя (consumer) в Kafka, выполните следующие шаги:
+
+Подключитесь к контейнеру Kafka:
+
+docker exec -it kafka bash
+
+В контейнере Kafka используйте команду kafka-console-consumer, чтобы читать сообщения из Kafka.
+
+
+kafka-console-consumer --bootstrap-server kafka:9092 --topic my_topic --from-beginning
+
+--bootstrap-server kafka:9092: Указывает адрес и порт брокера Kafka.
+В Docker Compose имя контейнера kafka будет использоваться как хост.
+--topic my_topic: Указывает имя топика, из которого вы хотите читать сообщения.
+ Убедитесь, что топик существует.
+--from-beginning: Эта опция заставляет потребителя читать сообщения с самого начала,
+ включая те, которые были отправлены до запуска потребителя.
+ Если эту опцию не использовать, потребитель будет получать только новые сообщения,
+ отправленные после его запуска.
+
+
+ 3. Для того чтобы Spark мог работать с Kafka, нужно передать необходимые библиотеки,
+ которые позволят интегрировать Spark с Kafka. Эти библиотеки могут быть переданы
+  через конфигурацию или через загрузку зависимостей при запуске Spark.
+
+
+Так судя по всему это не в Докере надо было запускать!!!
+spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 тест_коннект.py
+
+
+
+ Использование Kafka с Spark в Docker
+
+Если вы используете Spark в Docker, вы можете передать параметры --packages при запуске контейнера Spark или настроить ваш контейнер Spark таким образом,
+чтобы он автоматически подгружал эти библиотеки.
+
+docker exec -it spark-master spark-shell --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0
+
+после этого в скала:
+Подключитесь к Kafka из Spark Shell: В Spark Shell выполните следующую команду, чтобы подключиться к Kafka и проверить доступность топиков:
+val df = spark.readStream.format("kafka").option("kafka.bootstrap.servers", "kafka:9092").option("subscribe", "my_topic").load()
+
+ вывести данные из Kafka
+ df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)").writeStream.format("console").start()
+
+4/ Директория conf в Spark
+
+заходим в контейнер
+docker exec -it spark-master bash
+
+переходим в директорию
+cd /opt/bitnami/spark/conf
+
+установить уровень логирования через переменные окружения
+export SPARK_DRIVER_EXTRA_JAVA_OPTIONS="-Dlog4j.rootCategory=ERROR,console"
+
+Проверка через log4j настройки
+
+echo $SPARK_DRIVER_EXTRA_JAVA_OPTIONS
+
+должно выдать:
+-Dlog4j.rootCategory=ERROR,console
+
+
+5ю убедитесь что данные доступны
+val df = spark.readStream.format("kafka").option("kafka.bootstrap.servers", "kafka:9092").option("subscribe", "my_topic").option("startingOffsets", "earliest").load()
+
+val dfString = df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+
+val query = dfString.writeStream.outputMode("append").format("console").start()
+query.awaitTermination()
+
+
+docker exec -it spark-master spark-shell --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0
+
+
+df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)", "topic", "timestamp").writeStream.outputMode("append").format("console").start()
+
+parsedDf.writeStream.format("console").outputMode("append").option("truncate", "false").start().awaitTermination()
+
+
+
+6/ Возможно
+spark.readStream.format("kafka").option("kafka.bootstrap.servers", "kafka:9092").option("subscribe", "your_topic_name").load().selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)").writeStream.outputMode("append").format("console").start().awaitTermination()
+spark.readStream.format("kafka").option("kafka.bootstrap.servers", "localhost:9092").option("subscribe", "your_topic_name").load().selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)").writeStream.outputMode("append").format("console").start().awaitTermination()
+spark.readStream.format("kafka").option("kafka.bootstrap.servers", "192.168.2.19:9092").option("subscribe", "your_topic_name").load().selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)").writeStream.outputMode("append").format("console").start().awaitTermination()
+
+
+Запуск спарка с уровнем логирования!!
+spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 \
+  --conf "spark.log.level=ERROR" \
+  тест_коннект.py
