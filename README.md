@@ -14,7 +14,7 @@
 5. join_action_users.png - скрин из консоли - результат join с статическим dataset где каждому id сопоставлен user users_data = [(1,"Jimmy",18),(2,"Hank",48),(3,"Johnny",9),(4,"Erle",40)]
 
 join_stream = stat_stream.join(users, stat_stream.id == users.id, "left_outer").select(users.id,users.user_name, users.user_age, col('count'), col('last_timestamp'))
-# join_stream.writeStream.format("console").outputMode("complete").option("truncate", False).start().awaitTermination()
+join_stream.writeStream.format("console").outputMode("complete").option("truncate", False).start().awaitTermination()
 
 
    В результате в консоли видим
